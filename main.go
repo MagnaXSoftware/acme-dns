@@ -175,6 +175,7 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsservers []*DNSServer)
 			return
 		}
 		cfg.GetCertificate = magic.GetCertificate
+
 		srv := &http.Server{
 			Addr:      host,
 			Handler:   c.Handler(api),
