@@ -214,7 +214,7 @@ func makePolicyFunc(trustedAddrs []string) (proxyproto.PolicyFunc, error) {
 	var err error
 	addrMatchers := make([]IpAddrMatcher, len(trustedAddrs))
 	for i, addr := range trustedAddrs {
-		log.WithField("addr", addr).Info("Adding trusted proxy address")
+		log.WithField("addr", addr).Debug("Adding trusted proxy address")
 		addrMatchers[i], err = NewIpAddrMatcher(addr)
 		if err != nil {
 			log.WithField("value", addr).Errorf("Invalid trusted proxy address: %#v", addr)
