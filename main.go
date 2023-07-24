@@ -104,6 +104,8 @@ func main() {
 }
 
 func startHTTPAPI(errChan chan error, config DNSConfig, dnsservers []*DNSServer) {
+	var err error
+
 	// Setup http logger
 	logger := log.New()
 	logwriter := logger.Writer()
@@ -137,12 +139,11 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsservers []*DNSServer)
 	cfg := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
+
 	provider := NewChallengeProvider(dnsservers)
 	storage := certmagic.FileStorage{Path: config.API.ACMECacheDir}
 
 	// Set up certmagic for getting certificate for acme-dns api
-	certmagic.DefaultACME.DNS01Solver = &provider
-	certmagic.DefaultACME.Agreed = true
 	switch config.API.TLS {
 	case TlsTypeLetsEncrypt:
 		certmagic.DefaultACME.CA = certmagic.LetsEncryptProductionCA
@@ -153,18 +154,12 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsservers []*DNSServer)
 	default:
 	}
 	certmagic.DefaultACME.Email = config.API.ACMENotificationEmail
-	magicConf := certmagic.NewDefault()
-	magicConf.Storage = &storage
-	magicConf.DefaultServerName = config.General.Domain
+	certmagic.DefaultACME.Agreed = true
+	certmagic.DefaultACME.DNS01Solver = &provider
+	certmagic.Default.Storage = &storage
+	certmagic.Default.DefaultServerName = config.General.Domain
 
-	magicCache := certmagic.NewCache(certmagic.CacheOptions{
-		GetConfigForCert: func(cert certmagic.Certificate) (*certmagic.Config, error) {
-			return magicConf, nil
-		},
-	})
-
-	magic := certmagic.New(magicCache, *magicConf)
-	var err error
+	magic := certmagic.NewDefault()
 
 	srv := &http.Server{
 		Addr:     host,
