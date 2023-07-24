@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"flag"
 	stdlog "log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/caddyserver/certmagic"
 	legolog "github.com/go-acme/lego/v3/log"
 	"github.com/julienschmidt/httprouter"
+	"github.com/pires/go-proxyproto"
 	"github.com/rs/cors"
 	log "github.com/sirupsen/logrus"
 )
@@ -163,6 +165,13 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsservers []*DNSServer)
 
 	magic := certmagic.New(magicCache, *magicConf)
 	var err error
+
+	srv := &http.Server{
+		Addr:     host,
+		Handler:  c.Handler(api),
+		ErrorLog: stdlog.New(logwriter, "", 0),
+	}
+
 	switch config.API.TLS {
 	case TlsTypeLetsEncrypt:
 		fallthrough
@@ -176,30 +185,81 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsservers []*DNSServer)
 		}
 		cfg.GetCertificate = magic.GetCertificate
 
-		srv := &http.Server{
-			Addr:      host,
-			Handler:   c.Handler(api),
-			TLSConfig: cfg,
-			ErrorLog:  stdlog.New(logwriter, "", 0),
-		}
+		srv.TLSConfig = cfg
+
 		log.WithFields(log.Fields{"host": host, "domain": config.General.Domain}).Info("Listening HTTPS")
-		err = srv.ListenAndServeTLS("", "")
+		err = listenAndServe(srv, true, config)
 	case TlsTypeCert:
-		srv := &http.Server{
-			Addr:      host,
-			Handler:   c.Handler(api),
-			TLSConfig: cfg,
-			ErrorLog:  stdlog.New(logwriter, "", 0),
+		cfg.Certificates = make([]tls.Certificate, 1)
+		cfg.Certificates[0], err = tls.LoadX509KeyPair(config.API.TLSCertFullchain, config.API.TLSCertPrivkey)
+		if err != nil {
+			break
 		}
+		srv.TLSConfig = cfg
+
 		log.WithFields(log.Fields{"host": host}).Info("Listening HTTPS")
-		err = srv.ListenAndServeTLS(config.API.TLSCertFullchain, config.API.TLSCertPrivkey)
+		err = listenAndServe(srv, true, config)
 	case TlsTypeNone:
 		fallthrough
 	default:
 		log.WithFields(log.Fields{"host": host}).Info("Listening HTTP")
-		err = http.ListenAndServe(host, c.Handler(api))
+		err = listenAndServe(srv, false, config)
 	}
 	if err != nil {
 		errChan <- err
+	}
+}
+
+func makePolicyFunc(trustedAddrs []string) (proxyproto.PolicyFunc, error) {
+	var err error
+	addrMatchers := make([]IpAddrMatcher, len(trustedAddrs))
+	for i, addr := range trustedAddrs {
+		log.WithField("addr", addr).Info("Adding trusted proxy address")
+		addrMatchers[i], err = NewIpAddrMatcher(addr)
+		if err != nil {
+			log.WithField("value", addr).Errorf("Invalid trusted proxy address: %#v", addr)
+			return nil, err
+		}
+	}
+
+	return func(upstream net.Addr) (proxyproto.Policy, error) {
+		ip, err := ipFromAddr(upstream)
+		if err != nil {
+			return proxyproto.REJECT, err
+		}
+
+		for _, matcher := range addrMatchers {
+			if matcher.Contains(ip) {
+				return proxyproto.USE, nil
+			}
+		}
+
+		return proxyproto.IGNORE, nil
+	}, nil
+}
+
+func listenAndServe(srv *http.Server, tls bool, config DNSConfig) error {
+	listener, err := net.Listen("tcp", srv.Addr)
+	if err != nil {
+		return err
+	}
+
+	if config.API.Proxy {
+		log.Info("Listening with PROXY support")
+		pl := &proxyproto.Listener{Listener: listener}
+		if config.API.ProxyTrustedAddrs != nil && len(config.API.ProxyTrustedAddrs) >= 1 {
+			pl.Policy, err = makePolicyFunc(config.API.ProxyTrustedAddrs)
+			if err != nil {
+				return err
+			}
+		}
+		listener = pl
+	}
+	defer listener.Close()
+
+	if tls {
+		return srv.ServeTLS(listener, "", "")
+	} else {
+		return srv.Serve(listener)
 	}
 }
