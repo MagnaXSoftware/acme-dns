@@ -59,8 +59,10 @@ type httpapi struct {
 	ACMEDir               string `toml:"acme_dir"`
 	ACMENotificationEmail string `toml:"notification_email"`
 	CorsOrigins           []string
-	UseHeader             bool   `toml:"use_header"`
-	HeaderName            string `toml:"header_name"`
+	UseHeader             bool     `toml:"use_header"`
+	HeaderName            string   `toml:"header_name"`
+	Proxy                 bool     `toml:"use_proxy"`
+	ProxyTrustedAddrs     []string `toml:"proxy_trusted_addrs"`
 }
 
 // Logging config
@@ -73,7 +75,7 @@ type logconfig struct {
 
 type acmedb struct {
 	Mutex sync.Mutex
-	DB *sql.DB
+	DB    *sql.DB
 }
 
 type database interface {

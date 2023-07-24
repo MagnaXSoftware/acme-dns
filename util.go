@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"regexp"
 	"strings"
@@ -116,4 +117,59 @@ func getIPListFromHeader(header string) []string {
 		}
 	}
 	return iplist
+}
+
+func ipFromAddr(upstream net.Addr) (net.IP, error) {
+	upstreamString, _, err := net.SplitHostPort(upstream.String())
+	if err != nil {
+		return nil, err
+	}
+
+	upstreamIP := net.ParseIP(upstreamString)
+	if nil == upstreamIP {
+		return nil, fmt.Errorf("proxyproto: invalid IP address")
+	}
+
+	return upstreamIP, nil
+}
+
+type IpAddrMatcher interface {
+	Contains(net.IP) bool
+}
+
+func NewIpAddrMatcher(addr string) (IpAddrMatcher, error) {
+	if addr == "*" {
+		return &StarMatcher{}, nil
+	}
+	if strings.Contains(addr, "/") {
+		_, ipnet, err := net.ParseCIDR(addr)
+		if err != nil {
+			return nil, err
+		}
+		return &CIDRMatcher{ipnet}, nil
+	}
+
+	ip := net.ParseIP(addr)
+	return &IPMatcher{ip}, nil
+}
+
+type StarMatcher struct {
+}
+
+func (matcher *StarMatcher) Contains(net.IP) bool { return true }
+
+type CIDRMatcher struct {
+	CIDR *net.IPNet
+}
+
+func (c *CIDRMatcher) Contains(ip net.IP) bool {
+	return c.CIDR.Contains(ip)
+}
+
+type IPMatcher struct {
+	IP net.IP
+}
+
+func (i *IPMatcher) Contains(ip net.IP) bool {
+	return i.IP.Equal(ip)
 }
