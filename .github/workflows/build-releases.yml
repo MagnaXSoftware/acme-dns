@@ -1,4 +1,5 @@
 name: Build binaries for releases
+run-name: Build binaries for ${{ github.event.release.name || github.event.release.tag_name }}
 
 on:
   release:
@@ -45,10 +46,34 @@ jobs:
             
             git config --global --add safe.directory /src
             
-            go build -C /src -o _build/acme-dns_$(go env GOOS)${PREFIX}_$(go env GOARCH)
-            go build -C /src -tags libsqlite -o _build/acme-dns_$(go env GOOS)${PREFIX}_libsqlite3_$(go env GOARCH)
+            go build -C /src -o dist/acme-dns_$(go env GOOS)${PREFIX}_$(go env GOARCH)
+            go build -C /src -tags libsqlite -o dist/acme-dns_$(go env GOOS)${PREFIX}_libsqlite3_$(go env GOARCH)
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
 
+  checksum:
+    name: Checksum & Upload binaries
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [build]
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: binaries
+          path: dist
+      - name: Generate checksum
+        run: |
+          cd dist
+          sha256sum * > ../checksums.txt
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: _build/*
+          files: |
+            checksums.txt
+            dist/*
