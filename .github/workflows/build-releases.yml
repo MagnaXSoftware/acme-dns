@@ -27,7 +27,7 @@ jobs:
       - name: Build binaries in docker
         uses: addnab/docker-run-action@v3
         with:
-          images: ${{ matrix.arch }}/${{ matrix.image }}
+          image: ${{ matrix.arch }}/${{ matrix.image }}
           options: -v ${{ github.workspace }}:/src
           run: |
             . /etc/os-release
