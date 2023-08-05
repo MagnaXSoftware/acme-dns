@@ -1,0 +1,54 @@
+name: Build binaries for releases
+
+on:
+  release:
+    types:
+      - created
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build natives
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ['golang:1-bullseye', 'golang:1-alpine3.17']
+        arch: ['i386', 'amd64', 'arm32v6', 'arm64v8']
+        exclude:
+          - image: 'golang:1-bullseye'
+            arch: 'arm32v6'
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Build binaries in docker
+        uses: addnab/docker-run-action@v3
+        with:
+          images: ${{ matrix.arch }}/${{ matrix.image }}
+          options: -v ${{ github.workspace }}:/src
+          run: |
+            . /etc/os-release
+
+            PREFIX=""
+
+            if [ "${ID}" = "alpine" ]; then
+              PREFIX="_musl"
+              apk add --no-cache musl-dev sqlite-libs git
+            else
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get -q update;
+              apt-get -q install -y build-essential libsqlite3-dev git
+            fi
+            
+            git config --global --add safe.directory /src
+            
+            go build -C /src -o _build/acme-dns_$(go env GOOS)${PREFIX}_$(go env GOARCH)
+            go build -C /src -tags libsqlite -o _build/acme-dns_$(go env GOOS)${PREFIX}_libsqlite3_$(go env GOARCH)
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: _build/*
