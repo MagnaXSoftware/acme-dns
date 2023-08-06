@@ -62,11 +62,16 @@ jobs:
     if: always()
     needs: [build]
     steps:
+      - name: Check out code
+        uses: actions/checkout@v3
       - name: Download release artifacts
         uses: actions/download-artifact@v3
         with:
           name: binaries
           path: dist
+      - name: Compress support files
+        run: |
+          tar cvzf dist/acme-dns_support.tar.gz LICENSE README.md Dockerfile config.cfg acme-dns.service
       - name: Generate checksum
         run: |
           cd dist
