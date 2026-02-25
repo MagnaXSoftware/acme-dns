@@ -17,14 +17,14 @@ archives:
       - config.cfg
       - acme-dns.service
 
-signs:
-  - artifacts: checksum
-    args: ["--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}"]
+# signs:
+#   - artifacts: checksum
+#     args: ["--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}"]
 
 dockers:
   - image_templates:
-    - "joohoi/acme-dns:{{ .Tag }}"
-    - "joohoi/acme-dns:latest"
+    - "ghcr.io/magnaxsoftware/acme-dns:{{ .RawVersion }}"
+    - "ghcr.io/magnaxsoftware/acme-dns:latest"
     dockerfile: Dockerfile.release
     build_flag_templates:
     - "--pull"
@@ -32,4 +32,6 @@ dockers:
     - "--label=org.opencontainers.image.name={{.ProjectName}}"
     - "--label=org.opencontainers.image.revision={{.FullCommit}}"
     - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source={{.GitURL}}"
+    - "--label=org.opencontainers.image.url={{.GitURL}}"
 
