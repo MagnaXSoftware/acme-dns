@@ -310,7 +310,7 @@ use_header = false
 header_name = "X-Forwarded-For"
 
 [logconfig]
-# logging level: "error", "warning", "info" or "debug"
+# logging level: "error", "warn", "info" or "debug"
 loglevel = "debug"
 # possible values: stdout, TODO file & integrations
 logtype = "stdout"

@@ -60,6 +60,11 @@ func prepareConfig(conf AcmeDnsConfig) (AcmeDnsConfig, error) {
 		return conf, fmt.Errorf("invalid value for api.tls, expected one of [%s, %s, %s, %s, %s]", ApiTlsProviderCert, ApiTlsProviderLetsEncrypt, ApiTlsProviderLetsEncryptStaging, ApiTlsProviderCustom, ApiTlsProviderNone)
 	}
 
+	if conf.Logconfig.Level == "warning" {
+		conf.Logconfig.Level = "warn"
+		conf.Logconfig.LevelWarning = "\"warning\" is deprecated as a log level, use \"warn\" instead"
+	}
+
 	return conf, nil
 }
 
